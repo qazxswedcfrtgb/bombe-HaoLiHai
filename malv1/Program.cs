@@ -1,4 +1,4 @@
-﻿using Microsoft.Win32;
+﻿using Microsoft.Win32; //test
 using System;
 using System.Diagnostics;
 using System.Runtime.InteropServices;
@@ -261,3 +261,4 @@ class Program
         ));
     }
 }
+

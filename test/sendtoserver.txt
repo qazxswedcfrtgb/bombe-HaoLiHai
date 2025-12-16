@@ -1,0 +1,7 @@
+Invoke-RestMethod -Uri https://submit.bombe.top/submitMalAns -Method POST -ContentType "application/json" `
+-Body "{`r`n`
+  `"answer_1`": `"$(Get-Content ./prob1.txt)`",`r`n`
+  `"answer_2`": `"$(Get-Content ./prob2.txt)`",`r`n`
+  `"answer_3`": `"$(Get-Content ./prob3.txt)`",`r`n`
+  `"secret`": `"00000000000000000000000000000000`"`
+}"

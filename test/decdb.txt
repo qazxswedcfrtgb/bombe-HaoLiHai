@@ -1,0 +1,19 @@
+$all = [IO.File]::ReadAllBytes("C:\Users\Administrator\Desktop\prob2_enc.bin")
+$iv  = $all[0..15]
+$cipher = $all[16..($all.Length-1)]
+
+$aes = [System.Security.Cryptography.Aes]::Create()
+$aes.Mode = "CBC"
+$aes.Padding = "PKCS7"
+$secret = "00000000000000000000000000000000"
+$key = [Text.Encoding]::UTF8.GetBytes($secret)
+$aes.Key = $key
+$aes.IV  = $iv
+
+$dec = $aes.CreateDecryptor()
+$plain = $dec.TransformFinalBlock($cipher, 0, $cipher.Length)
+
+[IO.File]::WriteAllText(
+    "C:\Users\Administrator\Desktop\prob2.txt", 
+    [Text.Encoding]::ASCII.GetString($plain)
+)

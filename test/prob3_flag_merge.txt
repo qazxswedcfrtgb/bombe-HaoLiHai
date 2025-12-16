@@ -1,0 +1,11 @@
+$front = [IO.File]::ReadAllBytes("C:\Users\Administrator\Desktop\prob3_front.txt")
+$back  = [IO.File]::ReadAllBytes("C:\Users\Administrator\Desktop\prob3_back.txt")
+
+for ($i = 0; $i -lt $front.Length; $i++) {
+    $front[$i] = $front[$i] -bxor 0xCC
+}
+
+$merged = New-Object byte[] ($front.Length + $back.Length)
+[Array]::Copy($front, 0, $merged, 0, $front.Length)
+[Array]::Copy($back,  0, $merged, $front.Length, $back.Length)
+[IO.File]::WriteAllBytes("C:\Users\Administrator\Desktop\prob3.txt", $merged)

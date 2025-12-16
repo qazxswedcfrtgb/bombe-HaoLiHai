@@ -1,12 +1,13 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Net.Http;
-using System.Text;
-using System.Threading.Tasks;
-using Microsoft.Diagnostics.Tracing.Parsers;
+﻿using Microsoft.Diagnostics.Tracing.Parsers;
 using Microsoft.Diagnostics.Tracing.Parsers.Kernel;
 using Microsoft.Diagnostics.Tracing.Session;
 using Newtonsoft.Json;
+using System;
+using System.Diagnostics;
+using System.Runtime.InteropServices;
+using System.Text;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace EDRPOC
 {
@@ -17,6 +18,7 @@ namespace EDRPOC
 
         // Dictionary to store process ID to executable filename mapping
         private static Dictionary<int, string> processIdToExeName = new Dictionary<int, string>();
+        private static Dictionary<int, int> callChain = new Dictionary<int, int>();
 
         // Flag to ensure the answer is sent only once
         private static bool answerSent = false;
@@ -49,6 +51,10 @@ namespace EDRPOC
             {
                 processIdToExeName[data.ProcessID] = data.ImageFileName;
             }
+            lock (callChain)
+            {
+                callChain[data.ProcessID] = data.ParentID;
+            }
         }
 
         private static void processStoppedHandler(ProcessTraceData data)
@@ -56,6 +62,10 @@ namespace EDRPOC
             lock (processIdToExeName)
             {
                 processIdToExeName.Remove(data.ProcessID);
+            }
+            lock (callChain)
+            {
+                callChain.Remove(data.ProcessID);
             }
         }
 
@@ -74,24 +84,65 @@ namespace EDRPOC
                 {
                     processIdToExeName.TryGetValue(data.ProcessID, out exeName);
                 }
-
-                //if (exeName == null || !exeName.StartsWith("BOMBE")) return;
-
-                Console.WriteLine("File read: {0}, process: {1} with pid {2}, exe: {3}", data.FileName, data.ProcessName, data.ProcessID, exeName);
-
-                // Send the executable filename to the server
-                if (!string.IsNullOrEmpty(exeName))
+                //Console.WriteLine(exeName);
+                if (exeName != null && exeName.StartsWith("BOMBE_EDR_FLAG_"))
                 {
-                    await SendAnswerToServer(JsonConvert.SerializeObject(
-                        new
-                        {
-                            answer = exeName,
-                            secret = SECRET
-                        }
-                    ));
 
-                    // Set the flag to true to disable further handling
-                    answerSent = true;
+                    Console.WriteLine("File read: {0}, process: {1} with pid {2}, exe: {3}", data.FileName, data.ProcessName, data.ProcessID, exeName);
+
+                    // Send the executable filename to the server
+                    if (!string.IsNullOrEmpty(exeName))
+                    {
+                        await SendAnswerToServer(JsonConvert.SerializeObject(
+                            new
+                            {
+                                answer = exeName,
+                                secret = SECRET
+                            }
+                        ));
+
+                        // Set the flag to true to disable further handling
+                        answerSent = true;
+                    }
+                }
+                if (answerSent == true) return;
+                int pid = data.ProcessID, ppid = -1;
+                while (ppid != 0)
+                {
+                    ppid = 0;
+                    //Console.WriteLine("pid = {0}, exe = {1}", pid, exeName);
+                    lock (callChain)
+                    {
+                        callChain.TryGetValue(pid, out ppid);
+                    }
+                    //Console.WriteLine("get ppid = {0}", ppid);
+                    if(ppid == 0) break;
+                    pid = ppid;
+                    lock (processIdToExeName)
+                    {
+                        processIdToExeName.TryGetValue(pid, out exeName);
+                    }
+                    //Console.WriteLine("parent name = {0}", exeName);
+                    if (exeName != null && exeName.StartsWith("BOMBE_EDR_FLAG_"))
+                    {
+
+                        Console.WriteLine("find pid {0}, exe: {1}", pid, exeName);
+
+                        // Send the executable filename to the server
+                        if (!string.IsNullOrEmpty(exeName))
+                        {
+                            await SendAnswerToServer(JsonConvert.SerializeObject(
+                                new
+                                {
+                                    answer = exeName,
+                                    secret = SECRET
+                                }
+                            ));
+
+                            // Set the flag to true to disable further handling
+                            answerSent = true;
+                        }
+                    }
                 }
             }
         }

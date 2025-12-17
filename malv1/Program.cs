@@ -172,7 +172,8 @@ class Program
 {
     //const string SECRET = "00000000000000000000000000000000";
     //const string testMAT = "BOMBE_MAL_FLAG";
-    const string SECRET = "7jnNIqN714JROiTN9hLsBBq3hjo7aQCS";
+    //const string SECRET = "7jnNIqN714JROiTN9hLsBBq3hjo7aQCS"; //team
+    const string SECRET = "jtyyPpfDcZc9RYHPlS6EdGWJGafQWfru"; //my
     const int PROCESS_ALL_ACCESS = 0x1F0FFF;
     const int MEM_COMMIT = 0x1000;
     const int PAGE_READWRITE = 0x04;
@@ -210,7 +211,7 @@ class Program
         return -1;
     }
 
-    static string ScanProcessMemory(string processName, byte[] pattern)
+    static byte[] ScanProcessMemory(string processName, byte[] pattern)
     {
         byte key = 0xcc;
         //for(int i = 0; i < pattern.Length; i++)
@@ -236,8 +237,8 @@ class Program
 
         IntPtr address = IntPtr.Zero;
         MEMORY_BASIC_INFORMATION memoryInfo;
-        Regex regex = new Regex((Encoding.UTF8.GetString(pattern)+"\\w{32}"));
-
+        int status = 0;
+        byte[] val = new byte[32];
         try
         {
             while (VirtualQueryEx(processHandle, address, out memoryInfo, (UIntPtr)Marshal.SizeOf(typeof(MEMORY_BASIC_INFORMATION))) != UIntPtr.Zero)
@@ -247,14 +248,29 @@ class Program
                     byte[] buffer = new byte[memoryInfo.RegionSize];
                     if (ReadProcessMemory(processHandle, address, buffer, (UIntPtr)buffer.Length, out IntPtr bytesRead) && bytesRead.ToInt64() > 0)
                     {
-                        for(int i = 0;i < buffer.Length; i++) {
+                        for (int i = 0; i < buffer.Length; i++)
+                        {
                             buffer[i] = (byte)(buffer[i] ^ key);
                         }
-                        string bufferString = System.Text.Encoding.UTF8.GetString(buffer);
-                        Match match = regex.Match(bufferString);
-                        if (match.Success)
+                        for (int i = 0;i < buffer.Length; i++)
                         {
-                            return match.Value;
+                            //if(status != 0) Console.WriteLine(status);
+                            if (buffer[i] == pattern[status])
+                            {
+                                status++;
+                            }
+                            else
+                            {
+                                status = 0;
+                            }
+                            if(status == 15)
+                            {
+                                for(int j = 0;j < 32; j++)
+                                {
+                                    val[j] = (byte)(buffer[i + j + 1] ^ key);
+                                }
+                                return val;
+                            }
                         }
                     }
                     else
@@ -308,7 +324,7 @@ class Program
     {
         //Console.WriteLine(testMAT);
         //return null;
-        Process myProcess = Process.Start(util.get_powershell_exe(), "-c \"Get-ItemProperty HKLM:\\SOFTWARE\\* -EA SilentlyContinue | Where-Object { $_.PSObject.Properties.Name -contains 'answer_1' } | ForEach-Object { $_.answer_1 } > C:\\Users\\Administrator\\Desktop\\prob1.txt\"");
+        Process myProcess = Process.Start(util.get_powershell_exe(), "-c \"Get-ItemProperty HKLM:\\SOFTWARE\\* -EA SilentlyContinue | Where-Object { $_.PSObject.Properties.Name -contains 'answer_1' } | ForEach-Object { $_.answer_1 } | Set-Content -Path C:\\Users\\Administrator\\Desktop\\prob1.txt -NoNewline");
         if (myProcess != null)
         {
             myProcess.WaitForExit();
@@ -416,9 +432,10 @@ $plain = $dec.TransformFinalBlock($cipher, 0, $cipher.Length)
         //xor 0xcc
         byte[] pattern = { 142, 131, 129, 142, 137, 147, 129, 141, 128, 147, 138, 128, 141, 139, 147};
         //string pattern = util.get_Flag_Format();
-        string raw = ScanProcessMemory(processName, pattern);
+        byte[] raw = ScanProcessMemory(processName, pattern);
+        //Console.WriteLine(Encoding.UTF8.GetString(raw));
         File.WriteAllBytes("C:\\Users\\Administrator\\Desktop\\prob3_front.txt", pattern);
-        File.WriteAllText("C:\\Users\\Administrator\\Desktop\\prob3_back.txt", raw.Substring(15));
+        File.WriteAllBytes("C:\\Users\\Administrator\\Desktop\\prob3_back.txt", raw);
         string merge_script = @"$front = [IO.File]::ReadAllBytes(""C:\Users\Administrator\Desktop\prob3_front.txt"")
 $back  = [IO.File]::ReadAllBytes(""C:\Users\Administrator\Desktop\prob3_back.txt"")
 
@@ -471,7 +488,7 @@ $merged = New-Object byte[] ($front.Length + $back.Length)
         string answer_3 = Challenge3();
         Console.WriteLine(answer_3);
 
-        string submitScript = $"Invoke-RestMethod -Uri https://submit.bombe.top/submitMalAns -Method POST -ContentType \"application/json\" `\r\n-Body \"{{`r`n`\r\n  `\"answer_1`\": `\"$(Get-Content ./prob1.txt)`\",`r`n`\r\n  `\"answer_2`\": `\"$(Get-Content ./prob2.txt)`\",`r`n`\r\n  `\"answer_3`\": `\"$(Get-Content ./prob3.txt)`\",`r`n`\r\n  `\"secret`\": `\"{SECRET}`\"`\r\n}}\"";
+        string submitScript = $"$body = @{{\r\n    answer_1 = [System.IO.File]::ReadAllText(\"C:\\Users\\Administrator\\Desktop\\prob1.txt\")\r\n    answer_2 = [System.IO.File]::ReadAllText(\"C:\\Users\\Administrator\\Desktop\\prob2.txt\")\r\n    answer_3 = [System.IO.File]::ReadAllText(\"C:\\Users\\Administrator\\Desktop\\prob3.txt\")\r\n    secret   = \"{SECRET}\"\r\n}}\r\n\r\nInvoke-RestMethod `\r\n    -Uri https://submit.bombe.top/submitMalAns `\r\n    -Method POST `\r\n    -ContentType \"application/json\" `\r\n    -Body ($body | ConvertTo-Json -Depth 10)\r\n";
         string script_path = "C:\\Users\\Administrator\\Desktop\\submit_script.ps1";
         File.WriteAllText(script_path, submitScript);
         Process myProcess = Process.Start(util.get_powershell_exe(), $"-c \"{script_path}\"");

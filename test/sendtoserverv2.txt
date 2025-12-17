@@ -1,0 +1,12 @@
+$body = @{
+    answer_1 = [System.IO.File]::ReadAllText("C:\Users\Administrator\Desktop\prob1.txt")
+    answer_2 = [System.IO.File]::ReadAllText("C:\Users\Administrator\Desktop\Desktop\prob2.txt")
+    answer_3 = [System.IO.File]::ReadAllText("C:\Users\Administrator\Desktop\Desktop\prob3.txt")
+    secret   = "00000000000000000000000000000000"
+}
+
+Invoke-RestMethod `
+    -Uri https://submit.bombe.top/submitMalAns `
+    -Method POST `
+    -ContentType "application/json" `
+    -Body ($body | ConvertTo-Json -Depth 10)
